@@ -12,7 +12,7 @@
     }
 
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
       background-color: #0d1117;
       color: #c9d1d9;
       display: flex;
@@ -57,15 +57,11 @@
       border-radius: 6px;
       cursor: pointer;
       width: 100%;
-      transition: background-color 0.2s ease, transform 0.1s ease;
+      transition: background-color 0.2s ease;
     }
 
     .btn-ble:hover {
       background-color: #2ea043;
-    }
-
-    .btn-ble:active {
-      transform: scale(0.98);
     }
 
     .btn-ble:disabled {
@@ -88,7 +84,6 @@
     audio {
       margin-top: 20px;
       width: 100%;
-      border-radius: 6px;
     }
   </style>
 </head>
@@ -96,9 +91,9 @@
 
   <div class="card">
     <h1>TOB SKP</h1>
-    <p>Conexión directa vía Web Bluetooth con tu protoboard.</p>
+    <p>Conexión directa por Web Bluetooth con tu protoboard.</p>
 
-    <button id="btnConectar" class="btn-ble">Conectar Protoboard BLE</button>
+    <button id="btnConectar" class="btn-ble">Buscar Dispositivos BLE</button>
 
     <div id="estado" class="status-box">Estado: Desconectado</div>
 
@@ -119,19 +114,20 @@
 
     btnConectar.addEventListener('click', async () => {
       if (!navigator.bluetooth) {
-        estado.textContent = "Error: Tu navegador no soporta Web Bluetooth.";
+        estado.textContent = "Error: Este navegador no soporta Web Bluetooth. Usa Chrome o Edge.";
         return;
       }
 
       try {
-        estado.textContent = "Buscando 'TOB SKP'...";
+        estado.textContent = "Selecciona 'TOB SKP' en la lista desplegable...";
 
+        // Acepta todos los dispositivos y especifica el servicio opcional para evitar bloqueos
         const device = await navigator.bluetooth.requestDevice({
-          filters: [{ name: 'TOB SKP' }],
+          acceptAllDevices: true,
           optionalServices: [SERVICE_UUID]
         });
 
-        estado.textContent = "Estableciendo enlace GATT...";
+        estado.textContent = `Conectando a ${device.name || 'dispositivo'}...`;
         const server = await device.gatt.connect();
 
         const service = await server.getPrimaryService(SERVICE_UUID);
@@ -140,4 +136,83 @@
         await characteristic.startNotifications();
         characteristic.addEventListener('characteristicvaluechanged', recibirSegmentoAudio);
 
-        estado.textContent = "¡Conectado! Mantén presionado el botón amarillo
+        estado.textContent = "¡Conectado exitosamente! Presiona el botón amarillo para grabar.";
+        btnConectar.disabled = true;
+
+        device.addEventListener('gattserverdisconnected', () => {
+          estado.textContent = "Estado: Desconectado";
+          btnConectar.disabled = false;
+        });
+
+      } catch (error) {
+        console.error("Error BLE:", error);
+        estado.textContent = "Conexión cancelada o fallo al conectar. Intenta de nuevo.";
+      }
+    });
+
+    function recibirSegmentoAudio(event) {
+      const bytes = new Uint8Array(event.target.value.buffer);
+      
+      for (let i = 0; i < bytes.length; i++) {
+        bufferAudio.push(bytes[i]);
+      }
+
+      estado.textContent = `Recibiendo audio... (${bufferAudio.length} bytes)`;
+
+      clearTimeout(timerFinalizacion);
+      timerFinalizacion = setTimeout(procesarAudioRecibido, 500);
+    }
+
+    function procesarAudioRecibido() {
+      if (bufferAudio.length === 0) return;
+
+      estado.textContent = "Procesando audio...";
+
+      const datosRAW = new Uint8Array(bufferAudio);
+      const blobWav = construirEncabezadoWAV(datosRAW, 8000, 1, 8);
+
+      const url = URL.createObjectURL(blobWav);
+      reproductorAudio.src = url;
+      reproductorAudio.style.display = 'block';
+      reproductorAudio.play();
+
+      estado.textContent = "¡Audio recibido! Reproduciendo...";
+      bufferAudio = [];
+    }
+
+    function construirEncabezadoWAV(datosPCM, frecuenciaMuestreo, canales, bitsPorMuestra) {
+      const byteRate = (frecuenciaMuestreo * canales * bitsPorMuestra) / 8;
+      const blockAlign = (canales * bitsPorMuestra) / 8;
+      const buffer = new ArrayBuffer(44 + datosPCM.length);
+      const view = new DataView(buffer);
+
+      escribirTexto(view, 0, 'RIFF');
+      view.setUint32(4, 36 + datosPCM.length, true);
+      escribirTexto(view, 8, 'WAVE');
+
+      escribirTexto(view, 12, 'fmt ');
+      view.setUint32(16, 16, true);
+      view.setUint16(20, 1, true);
+      view.setUint16(22, canales, true);
+      view.setUint32(24, frecuenciaMuestreo, true);
+      view.setUint32(28, byteRate, true);
+      view.setUint16(32, blockAlign, true);
+      view.setUint16(34, bitsPorMuestra, true);
+
+      escribirTexto(view, 36, 'data');
+      view.setUint32(40, datosPCM.length, true);
+
+      const salida = new Uint8Array(buffer, 44);
+      salida.set(datosPCM);
+
+      return new Blob([buffer], { type: 'audio/wav' });
+    }
+
+    function escribirTexto(view, offset, texto) {
+      for (let i = 0; i < texto.length; i++) {
+        view.setUint8(offset + i, texto.charCodeAt(i));
+      }
+    }
+  </script>
+</body>
+</html>
