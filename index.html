@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Control Nano RP2040 - Asistente IA</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #121212;
+      color: #ffffff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+      margin: 0;
+    }
+    h1 { color: #00e676; font-size: 1.5rem; text-align: center; }
+    .card {
+      background: #1e1e1e;
+      border-radius: 12px;
+      padding: 20px;
+      width: 100%;
+      max-width: 400px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+      margin-bottom: 15px;
+      box-sizing: border-box;
+    }
+    button {
+      background-color: #00e676;
+      color: #000;
+      border: none;
+      padding: 12px 20px;
+      font-size: 1rem;
+      font-weight: bold;
+      border-radius: 8px;
+      width: 100%;
+      cursor: pointer;
+      margin-top: 10px;
+      transition: background 0.3s;
+    }
+    button:disabled { background-color: #555; color: #888; }
+    button.emergency { background-color: #ff5252; color: #fff; }
+    .status { font-size: 0.9rem; color: #bbb; margin-top: 10px; }
+    .log-box {
+      background: #000;
+      border: 1px solid #333;
+      border-radius: 6px;
+      padding: 10px;
+      height: 120px;
+      overflow-y: auto;
+      font-family: monospace;
+      font-size: 0.85rem;
+      color: #00ff66;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Control Nano RP2040 + IA</h1>
+
+  <div class="card">
+    <h3>1. Conexión Bluetooth</h3>
+    <button id="btnConectar">Conectar al Arduino</button>
+    <div class="status" id="estadoBLE">Estado: Desconectado</div>
+  </div>
+
+  <div class="card">
+    <h3>2. API Key de IA (OpenAI / Gemini)</h3>
+    <input type="password" id="apiKey" placeholder="Ingresa tu API Key de OpenAI" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #444; background: #222; color: #fff; box-sizing: border-box;">
+  </div>
+
+  <div class="card">
+    <h3>3. Transcripción y Respuesta IA</h3>
+    <div class="log-box" id="logBox">Esperando audio del Arduino...</div>
+  </div>
+
+  <div class="card" id="seccionAcciones">
+    <h3>4. Acciones Detectadas</h3>
+    <div id="resultadoAccion" style="margin-bottom: 10px; font-weight: bold;">Sin acciones pendientes</div>
+    <button id="btnEmergencia" class="emergency" style="display: none;">🚨 Llamar a Emergencias (911)</button>
+  </div>
+
+  <script>
+    // UUIDs configurados en el código de Arduino IDE
+    const SERVICE_UUID = "19b10000-e8f2-537e-4f6c-d104768a1214";
+    const CHARACTERISTIC_UUID = "19b10001-e8f2-537e-4f6c-d104768a1214";
+
+    let bluetoothDevice;
+    let audioBuffer = [];
+
+    const btnConectar = document.getElementById('btnConectar');
+    const estadoBLE = document.getElementById('estadoBLE');
+    const logBox = document.getElementById('logBox');
+    const btnEmergencia = document.getElementById('btnEmergencia');
+    const resultadoAccion = document.getElementById('resultadoAccion');
+
+    function log(mensaje) {
+      logBox.innerHTML += `<div>> ${mensaje}</div>`;
+      logBox.scrollTop = logBox.scrollHeight;
+    }
+
+    // --- CONEXIÓN BLUETOOTH WEB ---
+    btnConectar.addEventListener('click', async () => {
+      try {
+        log("Buscando dispositivo NanoRP2040_Voice...");
+        bluetoothDevice = await navigator.bluetooth.requestDevice({
+          filters: [{ name: 'NanoRP2040_Voice' }],
+          optionalServices: [SERVICE_UUID]
+        });
+
+        const server = await bluetoothDevice.gatt.connect();
+        const service = await server.getPrimaryService(SERVICE_UUID);
+        const characteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
+
+        await characteristic.startNotifications();
+        characteristic.addEventListener('characteristicvaluechanged', manejarDatosEntrantes);
+
+        estadoBLE.innerText = "Estado: Conectado a NanoRP2040";
+        estadoBLE.style.color = "#00e676";
+        btnConectar.disabled = true;
+        log("Conectado con éxito. Presiona el botón del Arduino para grabar.");
+      } catch (error) {
+        log("Error de conexión: " + error);
+      }
+    });
+
+    // --- RECEPCIÓN DE AUDIO RAW VIA BLE ---
+    function manejarDatosEntrantes(event) {
+      let value = event.target.value;
+      let chunk = new Uint8Array(value.buffer);
+      
+      for (let i = 0; i < chunk.length; i++) {
+        audioBuffer.push(chunk[i]);
+      }
+
+      log(`Recibiendo bytes de audio... (${audioBuffer.length} bytes)`);
+
+      // Timer para procesar el paquete una vez que deja de recibir datos por 1 segundo
+      clearTimeout(window.timeOutAudio);
+      window.timeOutAudio = setTimeout(procesarAudioRecibido, 1000);
+    }
+
+    // --- PROCESAMIENTO CON IA ---
+    async function procesarAudioRecibido() {
+      log(`Grabación recibida completa. Total: ${audioBuffer.length} bytes.`);
+      const apiKey = document.getElementById('apiKey').value;
+
+      if (!apiKey) {
+        log("⚠️ Por favor ingresa una API Key para procesar la IA.");
+        audioBuffer = [];
+        return;
+      }
+
+      log("Enviando audio a la API de Inteligencia Artificial...");
+
+      // Convertir audioBuffer (RAW 8kHz) a un Blob de datos
+      const rawData = new Uint8Array(audioBuffer);
+      audioBuffer = []; // Limpiar buffer
+
+      // Crear archivo WAV mínimo con encabezado
+      const wavBlob = crearWavBlob(rawData, 8000);
+
+      // 1. Llamada a la API de Whisper para transcripción
+      const formData = new FormData();
+      formData.append("file", wavBlob, "audio.wav");
+      formData.append("model", "whisper-1");
+
+      try {
+        const resWhisper = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${apiKey}` },
+          body: formData
+        });
+        const dataWhisper = await resWhisper.json();
+        const textoTranscrit = dataWhisper.text;
+
+        log(`📝 Transcripción: "${textoTranscrit}"`);
+
+        // 2. Analizar la intención del texto con GPT/LLM
+        analizarIntencionIA(textoTranscrit, apiKey);
+
+      } catch (err) {
+        log("Error al procesar audio: " + err);
+      }
+    }
+
+    // --- EVALUAR INTENCIÓN (RECORDATORIO VS EMERGENCIA) ---
+    async function analizarIntencionIA(texto, apiKey) {
+      try {
+        const resLLM = await fetch("https://api.openai.com/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${apiKey}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            model: "gpt-4o-mini",
+            messages: [
+              {
+                role: "system",
+                content: "Eres un asistente de voz. Analiza el texto recibido. Si el usuario pide un recordatorio o tarea, responde en JSON: {\"tipo\": \"recordatorio\", \"detalle\": \"texto del recordatorio\"}. Si el usuario menciona una emergencia, peligro, accidente o ayuda urgente, responde en JSON: {\"tipo\": \"emergencia\"}. Responde ÚNICAMENTE en formato JSON."
+              },
+              { role: "user", content: texto }
+            ]
+          })
+        });
+
+        const dataLLM = await resLLM.json();
+        const respuestaIA = JSON.parse(dataLLM.choices[0].message.content);
+
+        if (respuestaIA.tipo === "emergencia") {
+          resultadoAccion.innerText = "🚨 Alerta: Emergencia Detectada";
+          resultadoAccion.style.color = "#ff5252";
+          btnEmergencia.style.display = "block";
+          
+          // Ejecutar marcado automático si el navegador lo permite
+          window.location.href = "tel:911";
+
+        } else if (respuestaIA.tipo === "recordatorio") {
+          resultadoAccion.innerText = `📌 Recordatorio Creado: "${respuestaIA.detalle}"`;
+          resultadoAccion.style.color = "#00e676";
+          btnEmergencia.style.display = "none";
+
+          // Guardar en las notificaciones del navegador
+          if (Notification.permission === "granted") {
+            new Notification("Nuevo Recordatorio", { body: respuestaIA.detalle });
+          } else {
+            Notification.requestPermission();
+          }
+        }
+      } catch (e) {
+        log("Error analizando intención: " + e);
+      }
+    }
+
+    // --- ENCABEZADO WAV PARA AUDIO RAW DE 8KHZ ---
+    function crearWavBlob(samples, sampleRate) {
+      const buffer = new ArrayBuffer(44 + samples.length);
+      const view = new DataView(buffer);
+
+      const writeString = (offset, string) => {
+        for (let i = 0; i < string.length; i++) {
+          view.setUint8(offset + i, string.charCodeAt(i));
+        }
+      };
+
+      writeString(0, 'RIFF');
+      view.setUint32(4, 36 + samples.length, true);
+      writeString(8, 'WAVE');
+      writeString(12, 'fmt ');
+      view.setUint32(16, 16, true); // Subchunk1Size
+      view.setUint16(20, 1, true);  // AudioFormat (PCM)
+      view.setUint16(22, 1, true);  // NumChannels (Mono)
+      view.setUint32(24, sampleRate, true);
+      view.setUint32(28, sampleRate, true); // ByteRate
+      view.setUint16(32, 1, true);  // BlockAlign
+      view.setUint16(34, 8, true);  // BitsPerSample (8 bit)
+      writeString(36, 'data');
+      view.setUint32(40, samples.length, true);
+
+      for (let i = 0; i < samples.length; i++) {
+        view.setUint8(44 + i, samples[i]);
+      }
+
+      return new Blob([buffer], { type: 'audio/wav' });
+    }
+  </script>
+</body>
+</html>
