@@ -1,327 +1,81 @@
-  <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TOB - Receptor de Audio BLE</title>
+  <title>TOB Hub - Universal Audio Control</title>
   <style>
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-
+    * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-      background-color: #090d16;
-      color: #f0f6fc;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      min-height: 100vh;
-      padding: 20px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0d1117; color: #c9d1d9;
+      display: flex; justify-content: center; align-items: center;
+      min-height: 100vh; padding: 20px;
     }
-
-    .app-card {
-      background: #111827;
-      border: 1px solid #1f2937;
-      border-radius: 16px;
-      padding: 28px;
-      width: 100%;
-      max-width: 440px;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    .card {
+      background: #161b22; border: 1px solid #30363d;
+      border-radius: 12px; padding: 28px; width: 100%; max-width: 420px; text-align: center;
     }
-
-    .header {
-      text-align: center;
-      margin-bottom: 24px;
+    h1 { color: #58a6ff; margin-bottom: 8px; }
+    p { color: #8b949e; font-size: 0.9rem; margin-bottom: 20px; }
+    input[type="text"] {
+      width: 100%; padding: 12px; border-radius: 6px;
+      border: 1px solid #30363d; background: #0d1117; color: #fff;
+      font-size: 1rem; margin-bottom: 12px; text-align: center;
     }
-
-    .header h1 {
-      font-size: 1.6rem;
-      color: #38bdf8;
-      letter-spacing: 0.5px;
+    button {
+      width: 100%; padding: 12px; border-radius: 6px; border: none;
+      background: #238636; color: #fff; font-size: 1rem; font-weight: 600;
+      cursor: pointer; transition: background 0.2s;
     }
-
-    .header p {
-      font-size: 0.88rem;
-      color: #9ca3af;
-      margin-top: 6px;
+    button:hover { background: #2ea043; }
+    .status {
+      margin-top: 16px; padding: 10px; background: #0d1117;
+      border: 1px solid #21262d; border-radius: 6px; font-size: 0.85rem; color: #e3b341;
     }
-
-    .btn-primary {
-      width: 100%;
-      background: #2563eb;
-      color: #ffffff;
-      border: none;
-      padding: 14px;
-      font-size: 0.95rem;
-      font-weight: 600;
-      border-radius: 10px;
-      cursor: pointer;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      gap: 10px;
-      transition: background 0.2s, transform 0.1s;
-    }
-
-    .btn-primary:hover {
-      background: #1d4ed8;
-    }
-
-    .btn-primary:active {
-      transform: scale(0.98);
-    }
-
-    .btn-primary:disabled {
-      background: #374151;
-      color: #6b7280;
-      cursor: not-allowed;
-    }
-
-    .device-section {
-      margin-top: 24px;
-    }
-
-    .section-title {
-      font-size: 0.8rem;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      color: #6b7280;
-      margin-bottom: 12px;
-    }
-
-    .device-card {
-      background: #1f2937;
-      border: 1px solid #374151;
-      border-radius: 10px;
-      padding: 14px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 10px;
-      transition: border-color 0.2s;
-    }
-
-    .device-card.connected {
-      border-color: #22c55e;
-      background: #064e3b22;
-    }
-
-    .device-info {
-      text-align: left;
-    }
-
-    .device-name {
-      font-weight: 600;
-      font-size: 0.95rem;
-      color: #f3f4f6;
-    }
-
-    .device-status {
-      font-size: 0.78rem;
-      color: #9ca3af;
-      margin-top: 2px;
-    }
-
-    .badge {
-      font-size: 0.75rem;
-      padding: 4px 10px;
-      border-radius: 12px;
-      font-weight: 600;
-    }
-
-    .badge-disconnected {
-      background: #374151;
-      color: #9ca3af;
-    }
-
-    .badge-connected {
-      background: #166534;
-      color: #4ade80;
-    }
-
-    .log-box {
-      margin-top: 20px;
-      background: #030712;
-      border: 1px solid #1f2937;
-      border-radius: 8px;
-      padding: 12px;
-      font-family: monospace;
-      font-size: 0.8rem;
-      color: #fbbf24;
-      min-height: 48px;
-      word-break: break-all;
-    }
-
-    audio {
-      width: 100%;
-      margin-top: 20px;
-      border-radius: 8px;
-    }
+    audio { width: 100%; margin-top: 20px; }
   </style>
 </head>
 <body>
 
-  <div class="app-card">
-    <div class="header">
-      <h1>TOB Control Hub</h1>
-      <p>Receptor de Audio Bluetooth BLE</p>
-    </div>
+  <div class="card">
+    <h1>TOB Web Hub</h1>
+    <p>Compatible con Safari, Chrome, iOS y Android</p>
 
-    <button id="btnBuscar" class="btn-primary">
-      <span>🔍</span> Seleccionar Dispositivo "TOB"
-    </button>
+    <input type="text" id="ipArduino" placeholder="Ej: 192.168.1.50">
+    <button id="btnObtener">Obtener Último Audio</button>
 
-    <div class="device-section">
-      <div class="section-title">Estado del Dispositivo</div>
-      
-      <div id="contenedorDispositivo" class="device-card">
-        <div class="device-info">
-          <div id="nombreDispositivo" class="device-name">Desconectado</div>
-          <div id="subtituloDispositivo" class="device-status">Presiona buscar para emparejar</div>
-        </div>
-        <span id="badgeEstado" class="badge badge-disconnected">Desconectado</span>
-      </div>
-    </div>
+    <div id="estado" class="status">Ingresa la IP que muestra el Monitor Serie</div>
 
-    <div id="logEstado" class="log-box">Esperando acción del usuario...</div>
-
-    <audio id="reproductorAudio" controls style="display: none;"></audio>
+    <audio id="reproductor" controls style="display: none;"></audio>
   </div>
 
   <script>
-    const SERVICE_UUID = "19b10000-e8f2-537e-4f6c-d104768a1214";
-    const CHARACTERISTIC_UUID = "19b10001-e8f2-537e-4f6c-d104768a1214";
+    const ipInput = document.getElementById('ipArduino');
+    const btnObtener = document.getElementById('btnObtener');
+    const estado = document.getElementById('estado');
+    const reproductor = document.getElementById('reproductor');
 
-    const btnBuscar = document.getElementById('btnBuscar');
-    const nombreDispositivo = document.getElementById('nombreDispositivo');
-    const subtituloDispositivo = document.getElementById('subtituloDispositivo');
-    const badgeEstado = document.getElementById('badgeEstado');
-    const contenedorDispositivo = document.getElementById('contenedorDispositivo');
-    const logEstado = document.getElementById('logEstado');
-    const reproductorAudio = document.getElementById('reproductorAudio');
-
-    let dispositivoBLE = null;
-    let bufferAudio = [];
-    let timerFinalizacion = null;
-
-    btnBuscar.addEventListener('click', async () => {
-      if (!navigator.bluetooth) {
-        logEstado.textContent = "❌ Este navegador no soporta Web Bluetooth. Usa Chrome o Edge.";
+    btnObtener.addEventListener('click', async () => {
+      const ip = ipInput.value.trim();
+      if (!ip) {
+        estado.textContent = "Por favor ingresa la IP del Arduino.";
         return;
       }
 
+      estado.textContent = "Descargando audio desde el Arduino...";
+      const urlAudio = `http://${ip}/audio.wav`;
+
       try {
-        logEstado.textContent = "Buscando dispositivos Bluetooth...";
-        
-        // Muestra la ventana del navegador listando todos los dispositivos disponibles
-        dispositivoBLE = await navigator.bluetooth.requestDevice({
-          acceptAllDevices: true,
-          optionalServices: [SERVICE_UUID]
-        });
-
-        nombreDispositivo.textContent = dispositivoBLE.name || "TOB (Desconocido)";
-        subtituloDispositivo.textContent = "Conectando al servidor GATT...";
-        logEstado.textContent = `Emparejando con ${dispositivoBLE.name || 'dispositivo'}...`;
-
-        const server = await dispositivoBLE.gatt.connect();
-        
-        logEstado.textContent = "Obteniendo servicio de audio...";
-        const service = await server.getPrimaryService(SERVICE_UUID);
-        
-        logEstado.textContent = "Suscribiendo a la característica de transmisión...";
-        const characteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
-
-        await characteristic.startNotifications();
-        characteristic.addEventListener('characteristicvaluechanged', recibirSegmentoAudio);
-
-        // Actualizar vista
-        subtituloDispositivo.textContent = "Conectado. Esperando grabación...";
-        badgeEstado.textContent = "Conectado";
-        badgeEstado.className = "badge badge-connected";
-        contenedorDispositivo.classList.add('connected');
-        logEstado.textContent = "🟢 ¡Conectado a TOB! Mantén presionado el botón amarillo en la protoboard para grabar.";
-        btnBuscar.disabled = true;
-
-        dispositivoBLE.addEventListener('gattserverdisconnected', () => {
-          subtituloDispositivo.textContent = "Conexión finalizada";
-          badgeEstado.textContent = "Desconectado";
-          badgeEstado.className = "badge badge-disconnected";
-          contenedorDispositivo.classList.remove('connected');
-          logEstado.textContent = "🔴 Se desconectó el dispositivo TOB.";
-          btnBuscar.disabled = false;
-        });
-
-      } catch (error) {
-        console.error("Error BLE:", error);
-        logEstado.textContent = `⚠️ Error de conexión: ${error.message || error}`;
+        reproductor.src = urlAudio;
+        reproductor.style.display = 'block';
+        await reproductor.play();
+        estado.textContent = "▶️ Reproduciendo grabación...";
+      } catch (e) {
+        console.error(e);
+        estado.textContent = "Error al conectar. Verifica que la IP sea correcta y estés en el mismo Wi-Fi.";
       }
     });
-
-    function recibirSegmentoAudio(event) {
-      const bytes = new Uint8Array(event.target.value.buffer);
-      for (let i = 0; i < bytes.length; i++) {
-        bufferAudio.push(bytes[i]);
-      }
-
-      logEstado.textContent = `📥 Recibiendo audio desde la protoboard... (${bufferAudio.length} bytes)`;
-
-      clearTimeout(timerFinalizacion);
-      timerFinalizacion = setTimeout(procesarAudioRecibido, 500);
-    }
-
-    function procesarAudioRecibido() {
-      if (bufferAudio.length === 0) return;
-
-      logEstado.textContent = "⚙️ Decodificando archivo WAV...";
-
-      const datosRAW = new Uint8Array(bufferAudio);
-      const blobWav = construirEncabezadoWAV(datosRAW, 8000, 1, 8);
-
-      const url = URL.createObjectURL(blobWav);
-      reproductorAudio.src = url;
-      reproductorAudio.style.display = 'block';
-      reproductorAudio.play();
-
-      logEstado.textContent = "▶️ ¡Audio recibido! Reproduciendo...";
-      bufferAudio = [];
-    }
-
-    function construirEncabezadoWAV(datosPCM, frecuenciaMuestreo, canales, bitsPorMuestra) {
-      const byteRate = (frecuenciaMuestreo * canales * bitsPorMuestra) / 8;
-      const blockAlign = (canales * bitsPorMuestra) / 8;
-      const buffer = new ArrayBuffer(44 + datosPCM.length);
-      const view = new DataView(buffer);
-
-      escribirTexto(view, 0, 'RIFF');
-      view.setUint32(4, 36 + datosPCM.length, true);
-      escribirTexto(view, 8, 'WAVE');
-
-      escribirTexto(view, 12, 'fmt ');
-      view.setUint32(16, 16, true);
-      view.setUint16(20, 1, true);
-      view.setUint16(22, canales, true);
-      view.setUint32(24, frecuenciaMuestreo, true);
-      view.setUint32(28, byteRate, true);
-      view.setUint16(32, blockAlign, true);
-      view.setUint16(34, bitsPorMuestra, true);
-
-      escribirTexto(view, 36, 'data');
-      view.setUint32(40, datosPCM.length, true);
-
-      const salida = new Uint8Array(buffer, 44);
-      salida.set(datosPCM);
-
-      return new Blob([buffer], { type: 'audio/wav' });
-    }
-
-    function escribirTexto(view, offset, texto) {
-      for (let i = 0; i < texto.length; i++) {
-        view.setUint8(offset + i, texto.charCodeAt(i));
-      }
-    }
   </script>
 </body>
 </html>
