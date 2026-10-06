@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Control Nano RP2040 - Asistente IA</title>
+  <title>Control TOB SKP - Asistente IA</title>
   <style>
     body {
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -57,11 +57,11 @@
 </head>
 <body>
 
-  <h1>Control Nano RP2040 + IA</h1>
+  <h1>Control TOB SKP + IA</h1>
 
   <div class="card">
     <h3>1. Conexión Bluetooth</h3>
-    <button id="btnConectar">Conectar al Arduino</button>
+    <button id="btnConectar">Conectar a TOB SKP</button>
     <div class="status" id="estadoBLE">Estado: Desconectado</div>
   </div>
 
@@ -72,7 +72,7 @@
 
   <div class="card">
     <h3>3. Transcripción y Respuesta IA</h3>
-    <div class="log-box" id="logBox">Esperando audio del Arduino...</div>
+    <div class="log-box" id="logBox">Esperando audio de TOB SKP...</div>
   </div>
 
   <div class="card" id="seccionAcciones">
@@ -82,7 +82,6 @@
   </div>
 
   <script>
-    // UUIDs configurados en el código de Arduino IDE
     const SERVICE_UUID = "19b10000-e8f2-537e-4f6c-d104768a1214";
     const CHARACTERISTIC_UUID = "19b10001-e8f2-537e-4f6c-d104768a1214";
 
@@ -100,12 +99,12 @@
       logBox.scrollTop = logBox.scrollHeight;
     }
 
-    // --- CONEXIÓN BLUETOOTH WEB ---
+    // --- CONEXIÓN BLUETOOTH CON FILTRO "TOB SKP" ---
     btnConectar.addEventListener('click', async () => {
       try {
-        log("Buscando dispositivo NanoRP2040_Voice...");
+        log("Buscando dispositivo TOB SKP...");
         bluetoothDevice = await navigator.bluetooth.requestDevice({
-          filters: [{ name: 'NanoRP2040_Voice' }],
+          filters: [{ name: 'TOB SKP' }],
           optionalServices: [SERVICE_UUID]
         });
 
@@ -116,7 +115,7 @@
         await characteristic.startNotifications();
         characteristic.addEventListener('characteristicvaluechanged', manejarDatosEntrantes);
 
-        estadoBLE.innerText = "Estado: Conectado a NanoRP2040";
+        estadoBLE.innerText = "Estado: Conectado a TOB SKP";
         estadoBLE.style.color = "#00e676";
         btnConectar.disabled = true;
         log("Conectado con éxito. Presiona el botón del Arduino para grabar.");
@@ -125,7 +124,6 @@
       }
     });
 
-    // --- RECEPCIÓN DE AUDIO RAW VIA BLE ---
     function manejarDatosEntrantes(event) {
       let value = event.target.value;
       let chunk = new Uint8Array(value.buffer);
@@ -134,14 +132,12 @@
         audioBuffer.push(chunk[i]);
       }
 
-      log(`Recibiendo bytes de audio... (${audioBuffer.length} bytes)`);
+      log(`Recibiendo audio de TOB SKP... (${audioBuffer.length} bytes)`);
 
-      // Timer para procesar el paquete una vez que deja de recibir datos por 1 segundo
       clearTimeout(window.timeOutAudio);
       window.timeOutAudio = setTimeout(procesarAudioRecibido, 1000);
     }
 
-    // --- PROCESAMIENTO CON IA ---
     async function procesarAudioRecibido() {
       log(`Grabación recibida completa. Total: ${audioBuffer.length} bytes.`);
       const apiKey = document.getElementById('apiKey').value;
@@ -154,14 +150,11 @@
 
       log("Enviando audio a la API de Inteligencia Artificial...");
 
-      // Convertir audioBuffer (RAW 8kHz) a un Blob de datos
       const rawData = new Uint8Array(audioBuffer);
-      audioBuffer = []; // Limpiar buffer
+      audioBuffer = [];
 
-      // Crear archivo WAV mínimo con encabezado
       const wavBlob = crearWavBlob(rawData, 8000);
 
-      // 1. Llamada a la API de Whisper para transcripción
       const formData = new FormData();
       formData.append("file", wavBlob, "audio.wav");
       formData.append("model", "whisper-1");
@@ -177,7 +170,6 @@
 
         log(`📝 Transcripción: "${textoTranscrit}"`);
 
-        // 2. Analizar la intención del texto con GPT/LLM
         analizarIntencionIA(textoTranscrit, apiKey);
 
       } catch (err) {
@@ -185,7 +177,6 @@
       }
     }
 
-    // --- EVALUAR INTENCIÓN (RECORDATORIO VS EMERGENCIA) ---
     async function analizarIntencionIA(texto, apiKey) {
       try {
         const resLLM = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -214,7 +205,6 @@
           resultadoAccion.style.color = "#ff5252";
           btnEmergencia.style.display = "block";
           
-          // Ejecutar marcado automático si el navegador lo permite
           window.location.href = "tel:911";
 
         } else if (respuestaIA.tipo === "recordatorio") {
@@ -222,7 +212,6 @@
           resultadoAccion.style.color = "#00e676";
           btnEmergencia.style.display = "none";
 
-          // Guardar en las notificaciones del navegador
           if (Notification.permission === "granted") {
             new Notification("Nuevo Recordatorio", { body: respuestaIA.detalle });
           } else {
@@ -234,7 +223,6 @@
       }
     }
 
-    // --- ENCABEZADO WAV PARA AUDIO RAW DE 8KHZ ---
     function crearWavBlob(samples, sampleRate) {
       const buffer = new ArrayBuffer(44 + samples.length);
       const view = new DataView(buffer);
@@ -249,13 +237,13 @@
       view.setUint32(4, 36 + samples.length, true);
       writeString(8, 'WAVE');
       writeString(12, 'fmt ');
-      view.setUint32(16, 16, true); // Subchunk1Size
-      view.setUint16(20, 1, true);  // AudioFormat (PCM)
-      view.setUint16(22, 1, true);  // NumChannels (Mono)
+      view.setUint32(16, 16, true);
+      view.setUint16(20, 1, true);
+      view.setUint16(22, 1, true);
       view.setUint32(24, sampleRate, true);
-      view.setUint32(28, sampleRate, true); // ByteRate
-      view.setUint16(32, 1, true);  // BlockAlign
-      view.setUint16(34, 8, true);  // BitsPerSample (8 bit)
+      view.setUint32(28, sampleRate, true);
+      view.setUint16(32, 1, true);
+      view.setUint16(34, 8, true);
       writeString(36, 'data');
       view.setUint32(40, samples.length, true);
 
